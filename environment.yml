@@ -1,0 +1,15 @@
+name: noising-probing
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - h5py
+  - tqdm
+  - pandas
+  - python=3.11.9
+  - pytorch=2.3.0
+  - pytorch-cuda=11.8
+  - scikit-learn=1.4.2
+  - torchaudio=2.3.0
+  - torchvision=0.18.0
