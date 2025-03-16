@@ -449,7 +449,7 @@ def create_dataloader(embedding_name, partition_path, probing_path, batch_size, 
 
 
 batch_size = 4
-max_epochs = 2
+max_epochs = 200
 
 if torch.cuda.is_available():
     device=f"cuda:1" # {torch.cuda.current_device()}"
@@ -492,7 +492,7 @@ for fam in splits.fold.unique():
     t=3 # initial noise step
     T=10 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
-    perc=1.1 # percentaje that best/current loss ratio must reach for noise to be added
+    perc=0.9 # percentaje that best/current loss ratio must reach for noise to be added
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
@@ -536,8 +536,8 @@ for fam in splits.fold.unique():
         elif abs(current_loss - previous_loss) < tolerance: # negative difference, and assumed as 0
             logger.info("current and previous loss were similar")
             improved_perc = best_loss_dict[-1].get('loss')/current_loss
-            if (improved_perc > 1 and improved_perc < perc):
-                logger.info(f"and we are only less than {perc} far from best loss, adding noise")
+            if (improved_perc > perc):
+                logger.info(f"and we are only less than {1-perc} far from best loss, adding noise")
                 logger.info(f"best loss at this point: {best_loss_dict[-1].get('loss')}, stored at epoch {best_loss_dict[-1].get('epoch')}")
                 noise_added = True
                 add_noise = True
@@ -548,7 +548,7 @@ for fam in splits.fold.unique():
                 best_loss_dict.append({"epoch": epoch, "loss": current_loss})
                 logger.info(f"last entry best loss dict: {best_loss_dict[-1]}")
             else:
-                logger.info(f"but we are more than {perc} far from best loss, not adding noise")
+                logger.info(f"but we are more than {1-perc} far from best loss, not adding noise")
                 logger.info(f"best loss at this point: {best_loss_dict[-1].get('loss')}, stored at epoch {best_loss_dict[-1].get('epoch')}")
                 noise_added=False
         else:
