@@ -440,7 +440,7 @@ batch_size = 4
 max_epochs = 200
 
 if torch.cuda.is_available():
-    device=f"{torch.cuda.current_device()}"
+    device=f"cuda:{torch.cuda.current_device()}"
 else:
     device='cpu'
 lr=1e-4
