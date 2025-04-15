@@ -36,6 +36,7 @@ import requests
 import os
 import zipfile
 import py7zr
+import csv
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -353,7 +354,7 @@ def bp2matrix(L, base_pairs):
 
 class EmbeddingDataset(Dataset):
     def __init__(
-        self, dataset_path, embedding_name, probing_path, t, add_noise):
+        self, dataset_path, embedding_name, probing_path, beta):
 
         # Loading dataset
         data = pd.read_csv(dataset_path)
@@ -374,18 +375,6 @@ class EmbeddingDataset(Dataset):
         except FileNotFoundError:
             print(f"Probing file not found: {probing_path}")
             raise
-        beta = t/T
-        if add_noise:
-            logger.info(f"adding {beta} noise")
-            if beta>1:
-                beta=1
-        else:
-            # workaround to not add noise in the very first epochs
-            logger.info("not adding noise")
-            beta=0
-        logger.info(f"current noise step: {t}")
-        logger.info(f"max noise steps: {T}")
-        logger.info(f"beta: {beta}")
         # keep only sequences in dataset_path
         for seq_id in self.ids:
           embedding = torch.from_numpy(embeddings[seq_id][()])
@@ -430,13 +419,12 @@ def pad_batch(batch):
     return {"seq_ids": seq_ids, "seq_embs_pad": seq_embs_pad, "contacts": Mcs_pad, "Ls": Ls, "sequences": sequences}
 
 
-def create_dataloader(embedding_name, partition_path, probing_path, batch_size, shuffle, t, add_noise, collate_fn=pad_batch):
+def create_dataloader(embedding_name, partition_path, probing_path, batch_size, shuffle, beta, collate_fn=pad_batch):
     dataset = EmbeddingDataset(
         embedding_name=embedding_name,
         dataset_path=partition_path,
         probing_path=probing_path,
-        t=t,
-        add_noise=add_noise,
+        beta=beta,
     )
     return torch.utils.data.DataLoader(
         dataset,
@@ -492,20 +480,46 @@ for fam in splits.fold.unique():
     t=3 # initial noise step
     T=10 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
-    perc=0.9 # percentaje that best/current loss ratio must reach for noise to be added
+    perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
+    # metrics={
+    #     "train_loss":
+    # }
+    csv_path = os.path.join(out_path, "metrics.csv")
+    fieldnames = [
+        "train_loss", "train_f1",
+        "val_loss", "val_f1", 
+        "noise_added", "beta",
+        "epoch"
+    ]
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
     for epoch in range(max_epochs):
         logger.info(f"starting epoch {epoch}")
+
+        beta = t/T
+        if add_noise:
+            logger.info(f"adding {beta} noise")
+            if beta>1:
+                beta=1
+        else:
+            # workaround to not add noise in the very first epochs
+            logger.info("not adding noise")
+            beta=0
+        logger.info(f"current noise step: {t}")
+        logger.info(f"max noise steps: {T}")
+        logger.info(f"beta: {beta}")
+
         train_loader = create_dataloader(
             "one-hot",
             f"{data_path}/train.csv",
             "data/ArchiveII_probing.pt",
             batch_size,
             True,
-            t,
-            add_noise=add_noise
+            beta=beta,
         )
         metrics = net.fit(train_loader)
 
@@ -517,8 +531,7 @@ for fam in splits.fold.unique():
             "data/ArchiveII_probing.pt",
             batch_size,
             False,
-            t,
-            add_noise=add_noise
+            beta=beta,
         )
         logger.info("running inference")
         val_metrics = net.test(val_loader)
@@ -530,27 +543,25 @@ for fam in splits.fold.unique():
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
+        best_loss = best_loss_dict[-1].get('loss')
+        closeness_perc = (current_loss-best_loss)/best_loss
+        close_to_best = closeness_perc < perc
         if current_loss - previous_loss > tolerance: # positive difference between losses
             logger.info("loss worsened, not adding noise")
             noise_added = False
-        elif abs(current_loss - previous_loss) < tolerance: # negative difference, and assumed as 0
-            logger.info("current and previous loss were similar")
-            improved_perc = best_loss_dict[-1].get('loss')/current_loss
-            if (improved_perc > perc):
-                logger.info(f"and we are only less than {1-perc} far from best loss, adding noise")
-                logger.info(f"best loss at this point: {best_loss_dict[-1].get('loss')}, stored at epoch {best_loss_dict[-1].get('epoch')}")
-                noise_added = True
-                add_noise = True
-                t+=1
-                logger.info("Resetting optimizer state")
-                net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-                logger.info("updating best loss")
-                best_loss_dict.append({"epoch": epoch, "loss": current_loss})
-                logger.info(f"last entry best loss dict: {best_loss_dict[-1]}")
-            else:
-                logger.info(f"but we are more than {1-perc} far from best loss, not adding noise")
-                logger.info(f"best loss at this point: {best_loss_dict[-1].get('loss')}, stored at epoch {best_loss_dict[-1].get('epoch')}")
-                noise_added=False
+        elif abs(current_loss - previous_loss) <= tolerance or (add_noise and close_to_best):
+            # add noise
+            logger.info(f"loss reached plateau, or we are close to best, adding noise")
+            noise_added = True
+            add_noise = True
+            t+=1
+
+            logger.info("Resetting optimizer state")
+            net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+
+            logger.info("updating best loss")
+            best_loss_dict.append({"epoch": epoch, "loss": current_loss})
+            logger.info(f"last entry best loss dict: {best_loss_dict[-1]}")
         else:
             logger.info("loss improved, not adding noise")
             noise_added = False
@@ -560,7 +571,10 @@ for fam in splits.fold.unique():
 
         previous_loss = current_loss
 
-        metrics_for_epoch.append(metrics)
+        # metrics_for_epoch.append(metrics)
+        with open(csv_path, 'a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=metrics.keys())
+            writer.writerow(metrics)
         logger.info(" ".join([f"{k}: {v}" for k, v in metrics.items()]))
 
     # os.system(f"python src/train_model.py --emb {args.emb} --train_partition_path {data_path}train.csv --out_path {out_path}")
@@ -570,8 +584,8 @@ for fam in splits.fold.unique():
     # )
 
     logger.info(f"ArchiveII {fam} TRAINING ENDED".center(80))
-    pd.set_option('display.float_format','{:.3f}'.format)
-    pd.DataFrame(metrics_for_epoch).to_csv(os.path.join(out_path, f"metrics.csv"), index=False)
+    # pd.set_option('display.float_format','{:.3f}'.format)
+    # pd.DataFrame(metrics_for_epoch).to_csv(os.path.join(out_path, f"metrics.csv"), index=False)
     # logger.info("+" * 80)
     # logger.info(f"ArchiveII {fam} TESTING STARTED".center(80))
     # logger.info("+" * 80)
