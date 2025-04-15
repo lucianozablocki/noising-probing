@@ -470,7 +470,6 @@ for fam in splits.fold.unique():
     # embed_dim = get_embed_dim(train_loader) # hardcode embedding dimension
     net = SecondaryStructurePredictor(embed_dim=5, device=device, lr=lr)
 
-    metrics_for_epoch = []
     # logger.info(f"Run on {args.out_path}, with device {args.device} and embeddings {args.embeddings_path}")
     # logger.info(f"Training with file: {args.train_partition_path}")
     noise_added = False # flag to indicate if noise was increased in the current epoch
@@ -498,6 +497,7 @@ for fam in splits.fold.unique():
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
     for epoch in range(max_epochs):
+        metrics = {}
         logger.info(f"starting epoch {epoch}")
 
         beta = t/T
@@ -539,7 +539,7 @@ for fam in splits.fold.unique():
         val_metrics = {f"val_{k}": v for k, v in val_metrics.items()}
         metrics.update(val_metrics)
 
-        noise_metrics={"noise_added": noise_added, "beta": beta}
+        noise_metrics={"noise_added": noise_added, "beta": beta, "epoch": epoch}
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
