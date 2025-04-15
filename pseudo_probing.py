@@ -35,7 +35,7 @@ import numpy
 import requests
 import os
 import zipfile
-import py7zr
+# import py7zr
 import csv
 
 logging.basicConfig(
@@ -440,7 +440,7 @@ batch_size = 4
 max_epochs = 200
 
 if torch.cuda.is_available():
-    device=f"cuda:1" # {torch.cuda.current_device()}"
+    device=f"{torch.cuda.current_device()}"
 else:
     device='cpu'
 lr=1e-4
