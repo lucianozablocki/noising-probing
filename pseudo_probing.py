@@ -437,7 +437,7 @@ def create_dataloader(embedding_name, partition_path, probing_path, batch_size, 
 
 
 batch_size = 4
-max_epochs = 200
+max_epochs = 500
 
 if torch.cuda.is_available():
     device=f"cuda:{torch.cuda.current_device()}"
@@ -502,9 +502,9 @@ for fam in splits.fold.unique():
 
         beta = t/T
         if add_noise:
-            logger.info(f"adding {beta} noise")
             if beta>1:
                 beta=1
+            logger.info(f"adding {beta} noise")
         else:
             # workaround to not add noise in the very first epochs
             logger.info("not adding noise")
@@ -539,22 +539,24 @@ for fam in splits.fold.unique():
         val_metrics = {f"val_{k}": v for k, v in val_metrics.items()}
         metrics.update(val_metrics)
 
-        noise_metrics={"noise_added": noise_added, "beta": t/T}
+        noise_metrics={"noise_added": noise_added, "beta": beta}
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
         best_loss = best_loss_dict[-1].get('loss')
         closeness_perc = (current_loss-best_loss)/best_loss
         close_to_best = closeness_perc < perc
+        print(f"closeness perc is: {closeness_perc}")
+        print(f"close to best is: {close_to_best} ")
         if current_loss - previous_loss > tolerance: # positive difference between losses
             logger.info("loss worsened, not adding noise")
             noise_added = False
-        elif abs(current_loss - previous_loss) <= tolerance or (add_noise and close_to_best):
+        elif (not add_noise and abs(current_loss - previous_loss) <= tolerance) or (add_noise and close_to_best):
             # add noise
             logger.info(f"loss reached plateau, or we are close to best, adding noise")
             noise_added = True
             add_noise = True
-            t+=1
+            t+=.1
 
             logger.info("Resetting optimizer state")
             net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
