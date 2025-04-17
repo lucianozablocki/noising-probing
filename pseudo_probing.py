@@ -472,7 +472,7 @@ for fam in splits.fold.unique():
 
     # logger.info(f"Run on {args.out_path}, with device {args.device} and embeddings {args.embeddings_path}")
     # logger.info(f"Training with file: {args.train_partition_path}")
-    noise_added = False # flag to indicate if noise was increased in the current epoch
+    noise_added = False # # flag to indicate if noise will be increased in the next epoch
     add_noise = False # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
     previous_loss = float('inf') # init previous loss to something
     best_loss_dict = [{"epoch": -1, "loss": float('inf')}] # this was only a numeric value before, added a dict for debugging purposes
@@ -504,14 +504,13 @@ for fam in splits.fold.unique():
         if add_noise:
             if beta>1:
                 beta=1
-            logger.info(f"adding {beta} noise")
         else:
             # workaround to not add noise in the very first epochs
             logger.info("not adding noise")
             beta=0
-        logger.info(f"current noise step: {t}")
+        logger.info(f"current noise step: {t:.2f}")
         logger.info(f"max noise steps: {T}")
-        logger.info(f"beta: {beta}")
+        logger.info(f"beta: {beta:.2f}")
 
         train_loader = create_dataloader(
             "one-hot",
