@@ -437,7 +437,7 @@ def create_dataloader(embedding_name, partition_path, probing_path, batch_size, 
 
 
 batch_size = 4
-max_epochs = 500
+max_epochs = 1000
 
 if torch.cuda.is_available():
     device=f"cuda:{torch.cuda.current_device()}"
@@ -457,7 +457,7 @@ for fam in splits.fold.unique():
     train = df.loc[splits[(splits.fold==fam) & (splits.partition!="test")].index]
     test = df.loc[splits[(splits.fold==fam) & (splits.partition=="test")].index]
     data_path = f"data/{fam}"
-    out_path = f"results/{fam}"
+    out_path = f"results"
     os.makedirs(data_path, exist_ok=True)
     # shutil.rmtree(out_path, ignore_errors=True)
     os.makedirs(out_path, exist_ok=True)
@@ -473,19 +473,17 @@ for fam in splits.fold.unique():
     # logger.info(f"Run on {args.out_path}, with device {args.device} and embeddings {args.embeddings_path}")
     # logger.info(f"Training with file: {args.train_partition_path}")
     noise_added = False # # flag to indicate if noise will be increased in the next epoch
-    add_noise = False # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
+    first_noise_step_done = False # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
     previous_loss = float('inf') # init previous loss to something
     best_loss_dict = [{"epoch": -1, "loss": float('inf')}] # this was only a numeric value before, added a dict for debugging purposes
     t=3 # initial noise step
     T=10 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
     perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
+    warm_up_epochs=120
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
-    # metrics={
-    #     "train_loss":
-    # }
     csv_path = os.path.join(out_path, "metrics.csv")
     fieldnames = [
         "train_loss", "train_f1",
@@ -496,12 +494,12 @@ for fam in splits.fold.unique():
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-    for epoch in range(max_epochs):
+    for epoch in range(1, max_epochs+1):
         metrics = {}
         logger.info(f"starting epoch {epoch}")
 
         beta = t/T
-        if add_noise:
+        if first_noise_step_done:
             if beta>1:
                 beta=1
         else:
@@ -547,14 +545,22 @@ for fam in splits.fold.unique():
         close_to_best = closeness_perc < perc
         print(f"closeness perc is: {closeness_perc}")
         print(f"close to best is: {close_to_best} ")
+        in_warm_up_epochs = epoch < warm_up_epochs
+        if epoch==warm_up_epochs:
+            logger.info("saving model")
+            torch.save(
+              net.state_dict(),
+              f"results/{epoch}weights.pmt",
+            )
+
         if current_loss - previous_loss > tolerance: # positive difference between losses
             logger.info("loss worsened, not adding noise")
             noise_added = False
-        elif (not add_noise and abs(current_loss - previous_loss) <= tolerance) or (add_noise and close_to_best):
+        elif (not first_noise_step_done and not in_warm_up_epochs) or (first_noise_step_done and close_to_best):
             # add noise
-            logger.info(f"loss reached plateau, or we are close to best, adding noise")
+            logger.info(f"passed warm up epochs and we are close to best, adding noise")
             noise_added = True
-            add_noise = True
+            first_noise_step_done = True
             t+=.1
 
             logger.info("Resetting optimizer state")
@@ -566,7 +572,7 @@ for fam in splits.fold.unique():
         else:
             logger.info("loss improved, not adding noise")
             noise_added = False
-            if not add_noise: # just update best loss "instantaneously" for the very first epochs
+            if not first_noise_step_done: # just update best loss "instantaneously" for the very first epochs
                 logger.info("updating best loss")
                 best_loss_dict.append({"epoch": epoch, "loss": current_loss})
 
