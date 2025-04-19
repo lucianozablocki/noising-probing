@@ -543,9 +543,9 @@ for fam in splits.fold.unique():
         best_loss = best_loss_dict[-1].get('loss')
         closeness_perc = (current_loss-best_loss)/best_loss
         close_to_best = closeness_perc < perc
-        print(f"closeness perc is: {closeness_perc}")
-        print(f"close to best is: {close_to_best} ")
-        in_warm_up_epochs = epoch < warm_up_epochs
+        logger.info(f"closeness perc is: {closeness_perc}")
+        logger.info(f"close to best is: {close_to_best} ")
+        in_warm_up_epochs = epoch <= warm_up_epochs
         if epoch==warm_up_epochs:
             logger.info("saving model")
             torch.save(
