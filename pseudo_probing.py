@@ -37,6 +37,7 @@ import os
 import zipfile
 # import py7zr
 import csv
+import math
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -435,6 +436,20 @@ def create_dataloader(embedding_name, partition_path, probing_path, batch_size, 
 
 """# training code"""
 
+def linear_beta(beta_0, t, beta_max, T):
+    return beta_0 + ((t-1)/(T-1))*(beta_max-beta_0)
+
+def cosine_beta(t, T, s=0.008):
+    def f(t):
+      return math.cos((t / T + s) / (1 + s) * (math.pi / 2)) ** 2
+  
+    alpha_bar_t = f(t) / f(0)
+    alpha_bar_t_prev = f(t - 1) / f(0) if t > 1 else 1.0 # alpha_bar at first it is 1
+
+    alpha_t = alpha_bar_t / alpha_bar_t_prev
+    beta_t = 1 - alpha_t
+
+    return beta_t
 
 batch_size = 4
 max_epochs = 1000
@@ -469,18 +484,19 @@ for fam in splits.fold.unique():
 
     # embed_dim = get_embed_dim(train_loader) # hardcode embedding dimension
     net = SecondaryStructurePredictor(embed_dim=5, device=device, lr=lr)
+    net.load_state_dict(torch.load(f"results/120weights.pmt", map_location=torch.device(net.device)))
 
     # logger.info(f"Run on {args.out_path}, with device {args.device} and embeddings {args.embeddings_path}")
     # logger.info(f"Training with file: {args.train_partition_path}")
     noise_added = False # # flag to indicate if noise will be increased in the next epoch
-    first_noise_step_done = False # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
-    previous_loss = float('inf') # init previous loss to something
-    best_loss_dict = [{"epoch": -1, "loss": float('inf')}] # this was only a numeric value before, added a dict for debugging purposes
-    t=3 # initial noise step
-    T=10 # max noise steps
+    first_noise_step_done = True # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
+    previous_loss = 0.0040073508314569205
+    # loss reached at epoch 121 by the saved model
+    best_loss_dict = [{"epoch": 121, "loss": 0.0040073508314569205}] # this was only a numeric value before, added a dict for debugging purposes
+    t=0 # initial noise step
+    T=100 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
     perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
-    warm_up_epochs=120
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
@@ -540,28 +556,21 @@ for fam in splits.fold.unique():
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
-        best_loss = best_loss_dict[-1].get('loss')
+        best_loss = 0.0040073508314569205
         closeness_perc = (current_loss-best_loss)/best_loss
         close_to_best = closeness_perc < perc
         logger.info(f"closeness perc is: {closeness_perc}")
         logger.info(f"close to best is: {close_to_best} ")
-        in_warm_up_epochs = epoch <= warm_up_epochs
-        if epoch==warm_up_epochs:
-            logger.info("saving model")
-            torch.save(
-              net.state_dict(),
-              f"results/{epoch}weights.pmt",
-            )
 
         if current_loss - previous_loss > tolerance: # positive difference between losses
             logger.info("loss worsened, not adding noise")
             noise_added = False
-        elif (not first_noise_step_done and not in_warm_up_epochs) or (first_noise_step_done and close_to_best):
+        elif (first_noise_step_done and close_to_best):
             # add noise
             logger.info(f"passed warm up epochs and we are close to best, adding noise")
             noise_added = True
             first_noise_step_done = True
-            t+=.1
+            t+=1
 
             logger.info("Resetting optimizer state")
             net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
