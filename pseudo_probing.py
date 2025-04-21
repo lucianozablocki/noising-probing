@@ -493,13 +493,14 @@ for fam in splits.fold.unique():
     previous_loss = 0.0040073508314569205
     # loss reached at epoch 121 by the saved model
     best_loss_dict = [{"epoch": 121, "loss": 0.0040073508314569205}] # this was only a numeric value before, added a dict for debugging purposes
-    t=0 # initial noise step
+    t=1 # initial noise step
     T=100 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
     perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
+    logger.info(f"perc: {perc}")
     csv_path = os.path.join(out_path, "metrics.csv")
     fieldnames = [
         "train_loss", "train_f1",
@@ -524,7 +525,7 @@ for fam in splits.fold.unique():
             beta=0
         logger.info(f"current noise step: {t:.2f}")
         logger.info(f"max noise steps: {T}")
-        logger.info(f"beta: {beta:.2f}")
+        logger.info(f"beta: {beta:.6f}")
 
         train_loader = create_dataloader(
             "one-hot",
