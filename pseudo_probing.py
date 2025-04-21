@@ -441,7 +441,7 @@ def linear_beta(beta_0, t, beta_max, T):
 
 def cosine_beta(t, T, s=0.008):
     def f(t):
-      return math.cos((t / T + s) / (1 + s) * (math.pi / 2)) ** 2
+        return math.cos((t / T + s) / (1 + s) * (math.pi / 2)) ** 2
   
     alpha_bar_t = f(t) / f(0)
     alpha_bar_t_prev = f(t - 1) / f(0) if t > 1 else 1.0 # alpha_bar at first it is 1
@@ -450,6 +450,14 @@ def cosine_beta(t, T, s=0.008):
     beta_t = 1 - alpha_t
 
     return beta_t
+
+def exponential_beta(beta_min, t, beta_max, T):
+    if t == 1:
+        return beta_min
+    elif t == T:
+        return beta_max
+    else:
+        return beta_min * (beta_max / beta_min) ** ((t - 1) / (T - 1))
 
 batch_size = 4
 max_epochs = 1000
