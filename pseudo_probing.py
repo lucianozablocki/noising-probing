@@ -522,12 +522,7 @@ for fam in splits.fold.unique():
     for epoch in range(1, max_epochs+1):
         metrics = {}
         logger.info(f"starting epoch {epoch}")
-        if noise_added:
-            logger.info("saving model")
-            torch.save(
-              net.state_dict(),
-              f"results/{epoch}weights.pmt",
-            )
+
         beta = linear_beta(0,t,1,T)
         if first_noise_step_done:
             if beta>1:
@@ -599,6 +594,16 @@ for fam in splits.fold.unique():
             noise_added = True
             first_noise_step_done = True
             t+=1
+
+            logger.info("saving model")
+            torch.save(
+              net.state_dict(),
+              f"results/{epoch}weights.pmt",
+            )
+
+            if beta>0.39:
+                logger.info("noise level above 0.39, lr is now 1e-3")
+                lr=1e-3
 
             logger.info("Resetting optimizer state")
             net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
