@@ -501,7 +501,7 @@ for fam in splits.fold.unique():
     previous_loss = 0.0040073508314569205
     # loss reached at epoch 121 by the saved model
     best_loss_dict = [{"epoch": 121, "loss": 0.0040073508314569205}] # this was only a numeric value before, added a dict for debugging purposes
-    t=1 # initial noise step
+    t=2 # initial noise step
     T=100 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
     perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
@@ -514,7 +514,7 @@ for fam in splits.fold.unique():
         "train_loss", "train_f1",
         "val_loss", "val_f1", 
         "noise_added", "beta",
-        "epoch"
+        "epoch", "noise_step"
     ]
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -522,7 +522,12 @@ for fam in splits.fold.unique():
     for epoch in range(1, max_epochs+1):
         metrics = {}
         logger.info(f"starting epoch {epoch}")
-
+        if noise_added:
+            logger.info("saving model")
+            torch.save(
+              net.state_dict(),
+              f"results/{epoch}weights.pmt",
+            )
         beta = linear_beta(0,t,1,T)
         if first_noise_step_done:
             if beta>1:
@@ -551,7 +556,7 @@ for fam in splits.fold.unique():
             "one-hot",
             f"{data_path}/test.csv",
             "data/ArchiveII_probing.pt",
-            batch_size,
+            len(test),
             False,
             beta=beta,
         )
@@ -561,7 +566,21 @@ for fam in splits.fold.unique():
         val_metrics = {f"val_{k}": v for k, v in val_metrics.items()}
         metrics.update(val_metrics)
 
-        noise_metrics={"noise_added": noise_added, "beta": beta, "epoch": epoch}
+        hard_test_loader = create_dataloader(
+            "one-hot",
+            f"{data_path}/test.csv",
+            "data/ArchiveII_probing.pt",
+            len(test),
+            False,
+            beta=1,
+        )
+        logger.info("running hard test")
+        hard_test_metrics = net.test(hard_test_loader)
+
+        hard_test_metrics = {f"hard_test_metrics_{k}": v for k, v in hard_test_metrics.items()}
+        metrics.update(hard_test_metrics)
+
+        noise_metrics={"noise_added": noise_added, "beta": beta, "epoch": epoch, "noise_step": t}
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
