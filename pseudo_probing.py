@@ -441,7 +441,7 @@ def linear_beta(beta_0, t, beta_max, T):
 
 def cosine_beta(t, T, s=0.008):
     def f(t):
-      return math.cos((t / T + s) / (1 + s) * (math.pi / 2)) ** 2
+        return math.cos((t / T + s) / (1 + s) * (math.pi / 2)) ** 2
   
     alpha_bar_t = f(t) / f(0)
     alpha_bar_t_prev = f(t - 1) / f(0) if t > 1 else 1.0 # alpha_bar at first it is 1
@@ -450,6 +450,14 @@ def cosine_beta(t, T, s=0.008):
     beta_t = 1 - alpha_t
 
     return beta_t
+
+def exponential_beta(beta_min, t, beta_max, T):
+    if t == 1:
+        return beta_min
+    elif t == T:
+        return beta_max
+    else:
+        return beta_min * (beta_max / beta_min) ** ((t - 1) / (T - 1))
 
 batch_size = 4
 max_epochs = 1000
@@ -500,6 +508,7 @@ for fam in splits.fold.unique():
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
+    logger.info(f"perc: {perc}")
     csv_path = os.path.join(out_path, "metrics.csv")
     fieldnames = [
         "train_loss", "train_f1",
@@ -524,7 +533,7 @@ for fam in splits.fold.unique():
             beta=0
         logger.info(f"current noise step: {t:.2f}")
         logger.info(f"max noise steps: {T}")
-        logger.info(f"beta: {beta:.2f}")
+        logger.info(f"beta: {beta:.6f}")
 
         train_loader = create_dataloader(
             "one-hot",
