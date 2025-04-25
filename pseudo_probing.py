@@ -523,7 +523,7 @@ for fam in splits.fold.unique():
         metrics = {}
         logger.info(f"starting epoch {epoch}")
 
-        beta = t/T
+        beta = linear_beta(0,t,1,T)
         if first_noise_step_done:
             if beta>1:
                 beta=1
