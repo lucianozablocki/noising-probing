@@ -552,7 +552,7 @@ for fam in splits.fold.unique():
             "one-hot",
             f"{data_path}/test.csv",
             "data/ArchiveII_probing.pt",
-            len(test),
+            int(len(test)/2),
             False,
             beta=beta,
         )
@@ -566,7 +566,7 @@ for fam in splits.fold.unique():
             "one-hot",
             f"{data_path}/test.csv",
             "data/ArchiveII_probing.pt",
-            len(test),
+            int(len(test)/2),
             False,
             beta=1,
         )
