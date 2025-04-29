@@ -460,7 +460,7 @@ def exponential_beta(beta_min, t, beta_max, T):
         return beta_min * (beta_max / beta_min) ** ((t - 1) / (T - 1))
 
 batch_size = 4
-max_epochs = 1000
+max_epochs = 3000
 
 if torch.cuda.is_available():
     device=f"cuda:{torch.cuda.current_device()}"
@@ -520,7 +520,7 @@ for fam in splits.fold.unique():
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-    for epoch in range(1, max_epochs+1):
+    for epoch in range(828, max_epochs+828):
         metrics = {}
         logger.info(f"starting epoch {epoch}")
 
