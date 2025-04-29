@@ -512,7 +512,8 @@ for fam in splits.fold.unique():
     csv_path = os.path.join(out_path, "metrics.csv")
     fieldnames = [
         "train_loss", "train_f1",
-        "val_loss", "val_f1", 
+        "val_loss", "val_f1",
+        "hard_test_loss", "hard_test_f1",
         "noise_added", "beta",
         "epoch", "noise_step"
     ]
