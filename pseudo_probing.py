@@ -573,7 +573,7 @@ for fam in splits.fold.unique():
         logger.info("running hard test")
         hard_test_metrics = net.test(hard_test_loader)
 
-        hard_test_metrics = {f"hard_test_metrics_{k}": v for k, v in hard_test_metrics.items()}
+        hard_test_metrics = {f"hard_test_{k}": v for k, v in hard_test_metrics.items()}
         metrics.update(hard_test_metrics)
 
         noise_metrics={"noise_added": noise_added, "beta": beta, "epoch": epoch, "noise_step": t}
