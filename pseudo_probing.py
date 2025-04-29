@@ -492,16 +492,16 @@ for fam in splits.fold.unique():
 
     # embed_dim = get_embed_dim(train_loader) # hardcode embedding dimension
     net = SecondaryStructurePredictor(embed_dim=5, device=device, lr=lr)
-    net.load_state_dict(torch.load(f"results/120weights.pmt", map_location=torch.device(net.device)))
+    net.load_state_dict(torch.load(f"results/827weights.pmt", map_location=torch.device(net.device)))
 
     # logger.info(f"Run on {args.out_path}, with device {args.device} and embeddings {args.embeddings_path}")
     # logger.info(f"Training with file: {args.train_partition_path}")
-    noise_added = False # # flag to indicate if noise will be increased in the next epoch
+    noise_added = True # # flag to indicate if noise will be increased in the next epoch
     first_noise_step_done = True # flag to indicate whether to add noise or not (False for the first couple of epochs, True and not changed after such epochs)
-    previous_loss = 0.0040073508314569205
+    previous_loss = 0.003921333109331389
     # loss reached at epoch 121 by the saved model
-    best_loss_dict = [{"epoch": 121, "loss": 0.0040073508314569205}] # this was only a numeric value before, added a dict for debugging purposes
-    t=2 # initial noise step
+    best_loss_dict = [{"epoch": 827, "loss": 0.003921333109331389}] # this was only a numeric value before, added a dict for debugging purposes
+    t=41 # initial noise step
     T=100 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
     perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
@@ -580,7 +580,7 @@ for fam in splits.fold.unique():
         metrics.update(noise_metrics)
 
         current_loss = metrics['train_loss']
-        best_loss = 0.0040073508314569205
+        best_loss = 0.003921333109331389
         closeness_perc = (current_loss-best_loss)/best_loss
         close_to_best = closeness_perc < perc
         logger.info(f"closeness perc is: {closeness_perc}")
@@ -602,9 +602,9 @@ for fam in splits.fold.unique():
               f"results/{epoch}weights.pmt",
             )
 
-            if beta>0.39:
-                logger.info("noise level above 0.39, lr is now 1e-3")
-                lr=1e-3
+            # if beta>0.39:
+            #     logger.info("noise level above 0.39, lr is now 1e-3")
+            #     lr=1e-3
 
             logger.info("Resetting optimizer state")
             net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
