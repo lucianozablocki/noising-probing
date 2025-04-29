@@ -482,7 +482,7 @@ for fam in splits.fold.unique():
     data_path = f"data/{fam}"
     out_path = f"results"
     os.makedirs(data_path, exist_ok=True)
-    shutil.rmtree(out_path, ignore_errors=True)
+    # shutil.rmtree(out_path, ignore_errors=True)
     os.makedirs(out_path, exist_ok=True)
     train.to_csv(f"{data_path}/train.csv")
     test.to_csv(f"{data_path}/test.csv")
