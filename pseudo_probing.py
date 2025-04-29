@@ -466,7 +466,7 @@ if torch.cuda.is_available():
     device=f"cuda:{torch.cuda.current_device()}"
 else:
     device='cpu'
-lr=1e-4
+lr=1e-3
 
 import shutil
 
@@ -504,7 +504,7 @@ for fam in splits.fold.unique():
     t=41 # initial noise step
     T=100 # max noise steps
     tolerance=1e-5 # tolerance to interpret two consecutive loss values as equal
-    perc=0.001 # percentaje that best/current loss ratio must reach for noise to be added
+    perc=0.01 # percentaje that best/current loss ratio must reach for noise to be added
     logger.info(f"noise steps: {T}")
     logger.info(f"tol: {tolerance}")
     logger.info(f"max epochs: {max_epochs}")
@@ -609,8 +609,8 @@ for fam in splits.fold.unique():
             logger.info("Resetting optimizer state")
             net.optimizer = torch.optim.Adam(net.parameters(), lr=lr)
 
-            logger.info("updating best loss")
-            best_loss_dict.append({"epoch": epoch, "loss": current_loss})
+            # logger.info("updating best loss")
+            # best_loss_dict.append({"epoch": epoch, "loss": current_loss})
             logger.info(f"last entry best loss dict: {best_loss_dict[-1]}")
         else:
             logger.info("loss improved, not adding noise")
