@@ -34,8 +34,10 @@ class EmbeddingDataset(Dataset):
         for seq_id in self.ids:
             embedding = torch.from_numpy(embeddings[seq_id][()])
             probing_reshaped = probing[seq_id].reshape(probing[seq_id].shape[0], 1)
-            probing_reshaped = (1-beta)*probing_reshaped + beta*np.random.uniform(0, 1, probing_reshaped.shape)
-            embedding = torch.from_numpy(np.hstack([embedding, probing_reshaped])) # L x d -> L x d+1
+            # probing_reshaped = (1-beta)*probing_reshaped + beta*np.random.uniform(0, 1, probing_reshaped.shape)
+            # embedding = torch.from_numpy(np.hstack([embedding, probing_reshaped])) # L x d -> L x d+1
+            mask = (probing_reshaped == 0).float()  # 1 where probing=0, else 0
+            embedding = embedding * (1 - beta * mask)  # Scalse by (1-beta) where probing=0
             self.embeddings[seq_id] = embedding
 
         self.base_pairs = [
