@@ -5,8 +5,8 @@ import torch
 import pandas as pd
 
 from config import *
-from models import SecondaryStructurePredictor
-from datasets import create_dataloader
+from model import SecondaryStructurePredictor
+from dataset import create_dataloader
 from utils import (
     logger, linear_beta, setup_csv_logger, 
     log_metrics_to_csv
