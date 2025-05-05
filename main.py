@@ -85,14 +85,14 @@ def train_model(fam='5s'):
         beta=.5,
     )
 
-        # Test with hard (maximum) noise
+    # Test with no embedding scale
     hard_test_loader = create_dataloader(
         "one-hot",
         f"{data_path}/test.csv",
         "data/ArchiveII_probing.pt",
         int(len(test)/2),
         False,
-        beta=1,
+        beta=0,
     )
     # Training loop
     for epoch in range(1, MAX_EPOCHS):

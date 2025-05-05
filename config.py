@@ -4,8 +4,8 @@ import torch
 
 # Training parameters
 BATCH_SIZE = 4
-MAX_EPOCHS = 3000
-LEARNING_RATE = 1e-3
+MAX_EPOCHS = 300
+LEARNING_RATE = 1e-4
 
 # Noise parameters
 NOISE_STEPS = 100
