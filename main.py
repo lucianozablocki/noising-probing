@@ -65,25 +65,6 @@ def train_model(fam='5s'):
         # "epoch", "noise_step"
     ]
     setup_csv_logger(csv_path, fieldnames)
-    
-    # Create dataloaders with current noise level
-    train_loader = create_dataloader(
-        "one-hot",
-        f"{data_path}/train.csv",
-        "data/ArchiveII_probing.pt",
-        BATCH_SIZE,
-        True,
-        beta=.5,
-    )
-    # Validate on test set
-    val_loader = create_dataloader(
-        "one-hot",
-        f"{data_path}/test.csv",
-        "data/ArchiveII_probing.pt",
-        int(len(test)/2),
-        False,
-        beta=.5,
-    )
 
     # Test with no embedding scale
     hard_test_loader = create_dataloader(
@@ -112,14 +93,34 @@ def train_model(fam='5s'):
         # logger.info(f"Max noise steps: {NOISE_STEPS}")
         # logger.info(f"Beta: {beta:.6f}")
 
-        
+        if epoch < 121:
+            beta_train=1
+            beta_val=1
+        else:
+            beta_train=.5
+            beta_val=.5
+        # Create dataloaders with current noise level
+        train_loader = create_dataloader(
+            "one-hot",
+            f"{data_path}/train.csv",
+            "data/ArchiveII_probing.pt",
+            BATCH_SIZE,
+            True,
+            beta=beta_train,
+        )
+        # Validate on test set
+        val_loader = create_dataloader(
+            "one-hot",
+            f"{data_path}/test.csv",
+            "data/ArchiveII_probing.pt",
+            int(len(test)/2),
+            False,
+            beta=beta_val,
+        )
 
-        
         # Train for one epoch
         metrics = net.fit(train_loader)
         metrics = {f"train_{k}": v for k, v in metrics.items()}
-
-
         
         logger.info("Running validation")
         val_metrics = net.test(val_loader)
