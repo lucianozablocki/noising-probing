@@ -37,7 +37,10 @@ class ResidualLayer1D(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.layer(x)
+        # print("FORWARD RESNET1D")
+        out =  x + self.layer(x)
+        # print(f"out RESNET1D: {out.shape}")
+        return out
 
 class ResNet2DBlock(nn.Module):
     def __init__(self, embed_dim, kernel_size=3, bias=False):
@@ -98,8 +101,8 @@ class SecondaryStructurePredictor(nn.Module):
         #     nn.Sigmoid()  # Since probing is binary
         # )
         kernel=3
-        filters=32
-        embedding_dim=4
+        filters=16
+        # embedding_dim=4
         num_layers=2
         dilation_resnet1d=3
         resnet_bottleneck_factor=0.5
@@ -107,8 +110,21 @@ class SecondaryStructurePredictor(nn.Module):
 
         pad = (kernel - 1) // 2
 
-        self.resnet1d = [nn.Conv1d(embedding_dim, filters, kernel, padding="same")]
+        self.debugconv1d = nn.Conv1d((int)(conv_dim/2), filters, kernel, padding="same")
+        self.debugresnet1d1 = ResidualLayer1D(
+                    dilation_resnet1d,
+                    resnet_bottleneck_factor,
+                    filters,
+                    kernel,
+                )
+        self.debugresnet1d2 = ResidualLayer1D(
+                    dilation_resnet1d,
+                    resnet_bottleneck_factor,
+                    filters,
+                    kernel,
+                )
 
+        self.resnet1d = [nn.Conv1d((int)(conv_dim/2), filters, kernel, padding="same")]
         for k in range(num_layers):
             self.resnet1d.append(
                 ResidualLayer1D(
@@ -128,18 +144,18 @@ class SecondaryStructurePredictor(nn.Module):
             padding=pad,
             stride=1,
         )
-        self.convrank2 = nn.Conv1d(
-            in_channels=filters,
-            out_channels=rank,
-            kernel_size=kernel,
-            padding=pad,
-            stride=1,
-        )
+        # self.convrank2 = nn.Conv1d(
+        #     in_channels=filters,
+        #     out_channels=rank,
+        #     kernel_size=kernel,
+        #     padding=pad,
+        #     stride=1,
+        # )
 
         self.probing_predictor = nn.Sequential(
             *self.resnet1d,
-            self.convrank1,
-            self.convrank2)
+            self.convrank1)#,
+            # self.convrank2)
         
         self.resnet = ResNet2D(conv_dim, num_blocks, kernel_size)
         self.conv_out = nn.Conv2d(conv_dim, 1, kernel_size=kernel_size, padding="same")
@@ -171,11 +187,23 @@ class SecondaryStructurePredictor(nn.Module):
         x_1d = self.linear_in(x)
         
         # Probing prediction branch
-        probing_pred = self.probing_predictor(x_1d) if return_probing else None
+        x_1d_predbranch = x_1d.permute(0, 2, 1)
+        # print(f"SIZE OF whats entering to probing predictor: {x_1d.shape}")
+    
+    
+        # x_1d_debug = self.debugconv1d(x_1d)
+        # x_1d_debug = self.debugresnet1d1(x_1d_debug)
+        # x_1d_debug = self.debugresnet1d2(x_1d_debug)
+        # x_1d_debug = self.convrank1(x_1d_debug)
+        # # x_1d_debug = torch.transpose(x_1d_debug, -1, -2)
+        # # x_1d_debug = self.convrank2(x_1d_debug)
+        # print("FINISH DEBUG")
+        probing_pred = self.probing_predictor(x_1d_predbranch) if return_probing else None
         
         # Contact prediction branch
         x_2d = outer_concat(x_1d, x_1d)
         x_2d = x_2d.permute(0, 3, 1, 2)
+        # print(f"SIZE Of whats entering contact predictor: {x_2d.shape}")
         x_2d = self.resnet(x_2d)
         x_2d = self.conv_out(x_2d)
         x_2d = x_2d.squeeze(-3)

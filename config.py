@@ -5,13 +5,13 @@ import torch
 # Training parameters
 BATCH_SIZE = 4
 MAX_EPOCHS = 3000
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 
-# Noise parameters
-NOISE_STEPS = 100
-TOLERANCE = 1e-5
-CLOSENESS_PERCENTAGE = 0.1
-INITIAL_NOISE_STEP = 41
+# # Noise parameters
+# NOISE_STEPS = 100
+# TOLERANCE = 1e-5
+# CLOSENESS_PERCENTAGE = 0.1
+# INITIAL_NOISE_STEP = 41
 
 # Paths
 DATA_PATH = "data"
