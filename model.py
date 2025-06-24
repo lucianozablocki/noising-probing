@@ -106,7 +106,7 @@ class SecondaryStructurePredictor(nn.Module):
         num_layers=2
         dilation_resnet1d=3
         resnet_bottleneck_factor=0.5
-        rank=1
+        rank=64
 
         pad = (kernel - 1) // 2
 
@@ -151,12 +151,23 @@ class SecondaryStructurePredictor(nn.Module):
         #     padding=pad,
         #     stride=1,
         # )
-
-        self.probing_predictor = nn.Sequential(
+        # self.debuglinear = nn.Linear(64, 32)
+        # self.debuglinear2 = nn.Linear(32, 16)
+        # self.debuglinear3 = nn.Linear(16, 1)
+        # self.relu = nn.ReLU()
+        # self.sigmoid = nn.Sigmoid()
+        self.probing_predictor_1 = nn.Sequential(
             *self.resnet1d,
-            self.convrank1)#,
-            # self.convrank2)
-        
+            self.convrank1)
+
+        self.probing_predictor_2 = nn.Sequential(
+            nn.Linear(64, 32),  # Adjust max_sequence_length
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1),
+            nn.Sigmoid()
+          )        
         self.resnet = ResNet2D(conv_dim, num_blocks, kernel_size)
         self.conv_out = nn.Conv2d(conv_dim, 1, kernel_size=kernel_size, padding="same")
         self.device = device
@@ -188,18 +199,28 @@ class SecondaryStructurePredictor(nn.Module):
         
         # Probing prediction branch
         x_1d_predbranch = x_1d.permute(0, 2, 1)
-        # print(f"SIZE OF whats entering to probing predictor: {x_1d.shape}")
+        # print(f"SIZE OF whats entering to probing predictor: {x_1d_predbranch.shape}")
     
-    
-        # x_1d_debug = self.debugconv1d(x_1d)
+        # x_1d_debug = self.debugconv1d(x_1d_predbranch)
         # x_1d_debug = self.debugresnet1d1(x_1d_debug)
         # x_1d_debug = self.debugresnet1d2(x_1d_debug)
         # x_1d_debug = self.convrank1(x_1d_debug)
+        # print(f"SIZE OF whats entering to linear: {x_1d_debug.shape}")
+        # x_1d_debug = x_1d_debug.permute(0, 2, 1)
+        # print(f"after reshape: {x_1d_debug.shape}")
+
+        # x_1d_debug = self.debuglinear(x_1d_debug)
+        # x_1d_debug = self.relu(x_1d_debug)
+        # x_1d_debug = self.debuglinear2(x_1d_debug)
+        # x_1d_debug = self.relu(x_1d_debug)
+        # x_1d_debug = self.debuglinear3(x_1d_debug)
+        # probing_pred = self.sigmoid(x_1d_debug)
         # # x_1d_debug = torch.transpose(x_1d_debug, -1, -2)
         # # x_1d_debug = self.convrank2(x_1d_debug)
         # print("FINISH DEBUG")
-        probing_pred = self.probing_predictor(x_1d_predbranch) if return_probing else None
-        
+        probing_pred = self.probing_predictor_1(x_1d_predbranch) if return_probing else None
+        probing_pred = probing_pred.permute(0, 2, 1)
+        probing_pred = self.probing_predictor_2(probing_pred)
         # Contact prediction branch
         x_2d = outer_concat(x_1d, x_1d)
         x_2d = x_2d.permute(0, 3, 1, 2)
