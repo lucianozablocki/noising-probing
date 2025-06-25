@@ -90,7 +90,7 @@ class SecondaryStructurePredictor(nn.Module):
         super().__init__()
         self.lr = lr
         self.threshold = 0.1
-        self.linear_in = nn.Linear(embed_dim, (int)(conv_dim/2))
+        # self.linear_in = nn.Linear(embed_dim, (int)(conv_dim/2))
 
         # # New probing prediction branch, usar parte 1D del sincfold aca (reducir cant canales/capas para bajar complejidad)
         # # revisar MLP como capa final para adaptar dimensiones a la de salida
@@ -124,7 +124,7 @@ class SecondaryStructurePredictor(nn.Module):
                     kernel,
                 )
 
-        self.resnet1d = [nn.Conv1d((int)(conv_dim/2), filters, kernel, padding="same")]
+        self.resnet1d = [nn.Conv1d(embed_dim, filters, kernel, padding="same")]
         for k in range(num_layers):
             self.resnet1d.append(
                 ResidualLayer1D(
@@ -161,15 +161,25 @@ class SecondaryStructurePredictor(nn.Module):
             self.convrank1)
 
         self.probing_predictor_2 = nn.Sequential(
-            nn.Linear(64, 32),  # Adjust max_sequence_length
+            nn.Linear(64, 32),
             nn.ReLU(),
             nn.Linear(32, 16),
             nn.ReLU(),
             nn.Linear(16, 1),
             nn.Sigmoid()
           )        
-        self.resnet = ResNet2D(conv_dim, num_blocks, kernel_size)
-        self.conv_out = nn.Conv2d(conv_dim, 1, kernel_size=kernel_size, padding="same")
+
+        # self.probing_predictor_2 = nn.Sequential(
+        #     nn.Conv1d(64, 32, kernel_size=1),  # Pointwise convolution
+        #     nn.ReLU(),
+        #     nn.Conv1d(32, 16, kernel_size=1),
+        #     nn.ReLU(),
+        #     nn.Conv1d(16, 1, kernel_size=1),
+        #     nn.Sigmoid()
+        # )
+
+        self.resnet = ResNet2D(embed_dim*2, num_blocks, kernel_size)
+        self.conv_out = nn.Conv2d(embed_dim*2, 1, kernel_size=kernel_size, padding="same")
         self.device = device
         self.class_weight = torch.tensor([negative_weight, 1.0]).float().to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -195,7 +205,8 @@ class SecondaryStructurePredictor(nn.Module):
     def forward(self, x, return_probing=False):
         """Forward pass through the network"""
         # 1D processing
-        x_1d = self.linear_in(x)
+        # x_1d = self.linear_in(x)
+        x_1d = x
         
         # Probing prediction branch
         x_1d_predbranch = x_1d.permute(0, 2, 1)
