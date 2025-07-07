@@ -83,6 +83,26 @@ def contact_f1(ref_batch, pred_batch, Ls, th=0.5, reduce=True, method="triangula
     else:
         return torch.tensor(f1_list)
 
+def probing_f1(ref_batch, pred_batch, th=0.5):
+    f1_list = []
+    
+    if len(ref_batch.shape) == 1:
+        ref_batch = ref_batch.unsqueeze(0)
+    if len(pred_batch.shape) == 1:
+        pred_batch = pred_batch.unsqueeze(0)
+    
+    for ref, pred in zip(ref_batch, pred_batch):
+        ref = ref.squeeze()
+        pred = pred.squeeze()
+
+        pred[pred<=th] = 0
+        pred[pred>th] = 1
+
+        aux = f1_score(ref.numpy(), pred.numpy())
+        f1_list.append(aux)
+
+    return torch.tensor(f1_list).mean().item()
+
 def f1_triangular(ref, pred):
     """Compute F1 from the upper triangular connection matrix"""
     # get upper triangular matrix without diagonal

@@ -60,7 +60,7 @@ def train_model(fam='5s'):
     csv_path = os.path.join(RESULTS_PATH, "metrics.csv")
     fieldnames = [
         "train_loss", "train_f1", "train_contact_loss", "train_probing_loss",
-        "val_loss", "val_f1", "val_contact_loss", "val_probing_loss",
+        "val_loss", "val_f1", "val_contact_loss", "val_probing_loss", "train_f1_probing", "val_f1_probing",
         # "hard_test_loss", "hard_test_f1",
         # "noise_added", "beta",
         # "epoch",

@@ -7,7 +7,7 @@ from tqdm import tqdm
 import pandas as pd
 import math
 
-from utils import contact_f1, outer_concat, mat2bp
+from utils import contact_f1, outer_concat, mat2bp, probing_f1
 
 class ResidualLayer1D(nn.Module):
     def __init__(
@@ -151,8 +151,8 @@ class SecondaryStructurePredictor(nn.Module):
         
         # Probing prediction loss (if provided)
         probing_loss = 0
-        # if probing_pred is not None and probing_target is not None:
-        #     probing_loss = nn.MSELoss()(probing_pred.squeeze(), probing_target.squeeze())
+        if probing_pred is not None and probing_target is not None:
+            probing_loss = nn.MSELoss()(probing_pred.squeeze(), probing_target.squeeze())
         
         return contact_loss, probing_loss  # You can adjust the weighting
         # revisar comportamiento de las loss por separado, interesa ver que pasa con cada uno
@@ -166,7 +166,8 @@ class SecondaryStructurePredictor(nn.Module):
         x_1d_predbranch = x_1d.permute(0, 2, 1)
         embedding_1d = self.probing_predictor_1(x_1d_predbranch) if return_probing else None
         embedding_1d = embedding_1d.permute(0, 2, 1)
-        probing_pred = []#self.probing_predictor_2(probing_pred)
+        # print(f"SIZE OF whats entering to probing predictor: {embedding_1d.shape}")
+        probing_pred = self.probing_predictor_2(embedding_1d)
         # Contact prediction branch
 
         # print(f"SIZE OF whats entering to outer: {embedding_1d.shape}")
@@ -176,6 +177,8 @@ class SecondaryStructurePredictor(nn.Module):
         # print(f"SIZE Of whats entering contact predictor: {x_2d.shape}")
         # print(f"SIZE OF whats entering to resnet: {x_2d.shape}")
         x_2d = self.resnet(x_2d)
+
+        x_2d_mean = torch.mean(x_2d, 2) # rows
         x_2d = self.conv_out(x_2d)
         x_2d = x_2d.squeeze(-3)
         x_2d = torch.triu(x_2d, diagonal=1)
@@ -192,6 +195,7 @@ class SecondaryStructurePredictor(nn.Module):
         f1_acum = 0
         contact_loss_acum = 0
         probing_loss_acum = 0
+        f1_probing_acum = 0
 
         for batch in tqdm(loader):
             X = batch["seq_embs_pad"].to(self.device)
@@ -203,23 +207,25 @@ class SecondaryStructurePredictor(nn.Module):
             
             contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
             # Combine losses before backward
-            total_loss = contact_loss # + probing_loss
+            total_loss = contact_loss + probing_loss
         
             loss_acum += total_loss.item()
             contact_loss_acum += contact_loss.item()
-            # probing_loss_acum += probing_loss.item()
+            probing_loss_acum += probing_loss.item()
 
             f1_acum += contact_f1(y.cpu(), y_pred.detach().cpu(), batch["Ls"], method="triangular")
+            f1_probing_acum += probing_f1(probing_target.cpu(), probing_pred.detach().cpu())
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
             
         loss_acum /= len(loader)
         contact_loss_acum /= len(loader)
-        # probing_loss_acum /= len(loader)
+        probing_loss_acum /= len(loader)
         f1_acum /= len(loader)
+        f1_probing_acum /= len(loader)
 
-        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum}
+        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum, "f1_probing": f1_probing_acum}
 
     def test(self, loader):
         """Evaluate the model on a dataset"""
@@ -228,6 +234,7 @@ class SecondaryStructurePredictor(nn.Module):
         f1_acum = 0
         contact_loss_acum = 0
         probing_loss_acum = 0
+        f1_probing_acum = 0
 
         for batch in loader:
             X = batch["seq_embs_pad"].to(self.device)
@@ -237,20 +244,22 @@ class SecondaryStructurePredictor(nn.Module):
             with torch.no_grad():
                 y_pred, probing_pred = self(X, return_probing=True)
                 contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
-                total_loss = contact_loss # + probing_loss
+                total_loss = contact_loss + probing_loss
         
             loss_acum += total_loss.item()
             contact_loss_acum += contact_loss.item()
-            # probing_loss_acum += probing_loss.item()
+            probing_loss_acum += probing_loss.item()
             
             f1_acum += contact_f1(y.cpu(), y_pred.detach().cpu(), batch["Ls"], method="triangular")
-            
+            f1_probing_acum += probing_f1(probing_target.cpu(), probing_pred.detach().cpu())
+
         loss_acum /= len(loader)
         f1_acum /= len(loader)
         contact_loss_acum /= len(loader)
-        # probing_loss_acum /= len(loader)
+        probing_loss_acum /= len(loader)
+        f1_probing_acum /= len(loader)
 
-        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum}
+        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum, "f1_probing": f1_probing_acum}
 
     # def pred(self, loader):
     #     """Make predictions on a dataset"""
