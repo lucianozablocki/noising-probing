@@ -92,14 +92,6 @@ class SecondaryStructurePredictor(nn.Module):
         self.threshold = 0.1
         self.linear_in = nn.Linear(embed_dim, (int)(conv_dim/2))
 
-        # # New probing prediction branch, usar parte 1D del sincfold aca (reducir cant canales/capas para bajar complejidad)
-        # # revisar MLP como capa final para adaptar dimensiones a la de salida
-        # self.probing_predictor = nn.Sequential(
-        #     nn.Linear((int)(conv_dim/2), (int)(conv_dim/4)),
-        #     nn.ReLU(),
-        #     nn.Linear((int)(conv_dim/4), 1),
-        #     nn.Sigmoid()  # Since probing is binary
-        # )
         kernel=3
         filters=16
         # embedding_dim=4
@@ -109,20 +101,6 @@ class SecondaryStructurePredictor(nn.Module):
         rank=64
 
         pad = (kernel - 1) // 2
-
-        self.debugconv1d = nn.Conv1d((int)(conv_dim/2), filters, kernel, padding="same")
-        self.debugresnet1d1 = ResidualLayer1D(
-                    dilation_resnet1d,
-                    resnet_bottleneck_factor,
-                    filters,
-                    kernel,
-                )
-        self.debugresnet1d2 = ResidualLayer1D(
-                    dilation_resnet1d,
-                    resnet_bottleneck_factor,
-                    filters,
-                    kernel,
-                )
 
         self.resnet1d = [nn.Conv1d((int)(conv_dim/2), filters, kernel, padding="same")]
         for k in range(num_layers):
@@ -135,8 +113,6 @@ class SecondaryStructurePredictor(nn.Module):
                 )
             )
 
-        # self.resnet1d = nn.Sequential(*self.resnet1d)
-
         self.convrank1 = nn.Conv1d(
             in_channels=filters,
             out_channels=rank,
@@ -144,18 +120,7 @@ class SecondaryStructurePredictor(nn.Module):
             padding=pad,
             stride=1,
         )
-        # self.convrank2 = nn.Conv1d(
-        #     in_channels=filters,
-        #     out_channels=rank,
-        #     kernel_size=kernel,
-        #     padding=pad,
-        #     stride=1,
-        # )
-        # self.debuglinear = nn.Linear(64, 32)
-        # self.debuglinear2 = nn.Linear(32, 16)
-        # self.debuglinear3 = nn.Linear(16, 1)
-        # self.relu = nn.ReLU()
-        # self.sigmoid = nn.Sigmoid()
+
         self.probing_predictor_1 = nn.Sequential(
             *self.resnet1d,
             self.convrank1)
@@ -168,8 +133,8 @@ class SecondaryStructurePredictor(nn.Module):
             nn.Linear(16, 1),
             nn.Sigmoid()
           )        
-        self.resnet = ResNet2D(conv_dim, num_blocks, kernel_size)
-        self.conv_out = nn.Conv2d(conv_dim, 1, kernel_size=kernel_size, padding="same")
+        self.resnet = ResNet2D(rank*2, num_blocks, kernel_size)
+        self.conv_out = nn.Conv2d(conv_dim*2, 1, kernel_size=kernel_size, padding="same")
         self.device = device
         self.class_weight = torch.tensor([negative_weight, 1.0]).float().to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -186,8 +151,8 @@ class SecondaryStructurePredictor(nn.Module):
         
         # Probing prediction loss (if provided)
         probing_loss = 0
-        if probing_pred is not None and probing_target is not None:
-            probing_loss = nn.MSELoss()(probing_pred.squeeze(), probing_target.squeeze())
+        # if probing_pred is not None and probing_target is not None:
+        #     probing_loss = nn.MSELoss()(probing_pred.squeeze(), probing_target.squeeze())
         
         return contact_loss, probing_loss  # You can adjust the weighting
         # revisar comportamiento de las loss por separado, interesa ver que pasa con cada uno
@@ -199,32 +164,17 @@ class SecondaryStructurePredictor(nn.Module):
         
         # Probing prediction branch
         x_1d_predbranch = x_1d.permute(0, 2, 1)
-        # print(f"SIZE OF whats entering to probing predictor: {x_1d_predbranch.shape}")
-    
-        # x_1d_debug = self.debugconv1d(x_1d_predbranch)
-        # x_1d_debug = self.debugresnet1d1(x_1d_debug)
-        # x_1d_debug = self.debugresnet1d2(x_1d_debug)
-        # x_1d_debug = self.convrank1(x_1d_debug)
-        # print(f"SIZE OF whats entering to linear: {x_1d_debug.shape}")
-        # x_1d_debug = x_1d_debug.permute(0, 2, 1)
-        # print(f"after reshape: {x_1d_debug.shape}")
-
-        # x_1d_debug = self.debuglinear(x_1d_debug)
-        # x_1d_debug = self.relu(x_1d_debug)
-        # x_1d_debug = self.debuglinear2(x_1d_debug)
-        # x_1d_debug = self.relu(x_1d_debug)
-        # x_1d_debug = self.debuglinear3(x_1d_debug)
-        # probing_pred = self.sigmoid(x_1d_debug)
-        # # x_1d_debug = torch.transpose(x_1d_debug, -1, -2)
-        # # x_1d_debug = self.convrank2(x_1d_debug)
-        # print("FINISH DEBUG")
-        probing_pred = self.probing_predictor_1(x_1d_predbranch) if return_probing else None
-        probing_pred = probing_pred.permute(0, 2, 1)
-        probing_pred = self.probing_predictor_2(probing_pred)
+        embedding_1d = self.probing_predictor_1(x_1d_predbranch) if return_probing else None
+        embedding_1d = embedding_1d.permute(0, 2, 1)
+        probing_pred = []#self.probing_predictor_2(probing_pred)
         # Contact prediction branch
-        x_2d = outer_concat(x_1d, x_1d)
+
+        # print(f"SIZE OF whats entering to outer: {embedding_1d.shape}")
+        x_2d = outer_concat(embedding_1d, embedding_1d)
+        # print(f"SIZE OF whats outputing outer: {x_2d.shape}")
         x_2d = x_2d.permute(0, 3, 1, 2)
         # print(f"SIZE Of whats entering contact predictor: {x_2d.shape}")
+        # print(f"SIZE OF whats entering to resnet: {x_2d.shape}")
         x_2d = self.resnet(x_2d)
         x_2d = self.conv_out(x_2d)
         x_2d = x_2d.squeeze(-3)
@@ -253,11 +203,11 @@ class SecondaryStructurePredictor(nn.Module):
             
             contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
             # Combine losses before backward
-            total_loss = contact_loss + probing_loss
+            total_loss = contact_loss # + probing_loss
         
             loss_acum += total_loss.item()
             contact_loss_acum += contact_loss.item()
-            probing_loss_acum += probing_loss.item()
+            # probing_loss_acum += probing_loss.item()
 
             f1_acum += contact_f1(y.cpu(), y_pred.detach().cpu(), batch["Ls"], method="triangular")
             self.optimizer.zero_grad()
@@ -266,7 +216,7 @@ class SecondaryStructurePredictor(nn.Module):
             
         loss_acum /= len(loader)
         contact_loss_acum /= len(loader)
-        probing_loss_acum /= len(loader)
+        # probing_loss_acum /= len(loader)
         f1_acum /= len(loader)
 
         return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum}
@@ -287,18 +237,18 @@ class SecondaryStructurePredictor(nn.Module):
             with torch.no_grad():
                 y_pred, probing_pred = self(X, return_probing=True)
                 contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
-                total_loss = contact_loss + probing_loss
+                total_loss = contact_loss # + probing_loss
         
             loss_acum += total_loss.item()
             contact_loss_acum += contact_loss.item()
-            probing_loss_acum += probing_loss.item()
+            # probing_loss_acum += probing_loss.item()
             
             f1_acum += contact_f1(y.cpu(), y_pred.detach().cpu(), batch["Ls"], method="triangular")
             
         loss_acum /= len(loader)
         f1_acum /= len(loader)
         contact_loss_acum /= len(loader)
-        probing_loss_acum /= len(loader)
+        # probing_loss_acum /= len(loader)
 
         return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum}
 
