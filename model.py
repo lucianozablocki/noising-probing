@@ -126,7 +126,7 @@ class SecondaryStructurePredictor(nn.Module):
             self.convrank1)
 
         self.probing_predictor_2 = nn.Sequential(
-            nn.Linear(64, 32),  # Adjust max_sequence_length
+            nn.Linear(128, 32),  # Adjust max_sequence_length
             nn.ReLU(),
             nn.Linear(32, 16),
             nn.ReLU(),
@@ -167,7 +167,6 @@ class SecondaryStructurePredictor(nn.Module):
         embedding_1d = self.probing_predictor_1(x_1d_predbranch) if return_probing else None
         embedding_1d = embedding_1d.permute(0, 2, 1)
         # print(f"SIZE OF whats entering to probing predictor: {embedding_1d.shape}")
-        probing_pred = self.probing_predictor_2(embedding_1d)
         # Contact prediction branch
 
         # print(f"SIZE OF whats entering to outer: {embedding_1d.shape}")
@@ -179,6 +178,9 @@ class SecondaryStructurePredictor(nn.Module):
         x_2d = self.resnet(x_2d)
 
         x_2d_mean = torch.mean(x_2d, 2) # rows
+        x_2d_mean = x_2d_mean.permute(0, 2, 1)
+        probing_pred = self.probing_predictor_2(x_2d_mean)
+
         x_2d = self.conv_out(x_2d)
         x_2d = x_2d.squeeze(-3)
         x_2d = torch.triu(x_2d, diagonal=1)
