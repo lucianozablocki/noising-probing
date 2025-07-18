@@ -227,7 +227,13 @@ class SecondaryStructurePredictor(nn.Module):
         f1_acum /= len(loader)
         f1_probing_acum /= len(loader)
 
-        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum, "f1_probing": f1_probing_acum}
+        return {
+            "loss": loss_acum,
+            "f1": f1_acum,
+            "contact_loss": contact_loss_acum,
+            "probing_loss": probing_loss_acum,
+            "f1_probing": f1_probing_acum
+        }
 
     def test(self, loader):
         """Evaluate the model on a dataset"""
@@ -261,7 +267,13 @@ class SecondaryStructurePredictor(nn.Module):
         probing_loss_acum /= len(loader)
         f1_probing_acum /= len(loader)
 
-        return {"loss": loss_acum, "f1": f1_acum, "contact_loss": contact_loss_acum, "probing_loss": probing_loss_acum, "f1_probing": f1_probing_acum}
+        return {
+            "loss": loss_acum,
+            "f1": f1_acum,
+            "contact_loss": contact_loss_acum,
+            "probing_loss": probing_loss_acum,
+            "f1_probing": f1_probing_acum
+        }
 
     # def pred(self, loader):
     #     """Make predictions on a dataset"""
