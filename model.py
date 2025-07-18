@@ -170,9 +170,9 @@ class SecondaryStructurePredictor(nn.Module):
         x_2d = self.resnet(x_2d)
 
         # Probing prediction branch
-        x_2d_mean = torch.mean(x_2d, 2) # rows
-        x_2d_mean = x_2d_mean.permute(0, 2, 1)
-        probing_pred = self.probing_predictor_2(x_2d_mean)
+        x_2d_max, _ = torch.max(x_2d, 2) # max over rows
+        x_2d_max = x_2d_max.permute(0, 2, 1)
+        probing_pred = self.probing_predictor_2(x_2d_max)
 
         # Contact prediction branch
         x_2d = self.conv_out(x_2d)
