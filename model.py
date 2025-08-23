@@ -131,11 +131,9 @@ class SecondaryStructurePredictor(nn.Module):
             nn.Conv1d(in_channels=64, out_channels=32, kernel_size=3, padding='same'),
             nn.ReLU(),
             #Lineal que toma las 32 features "representativas" y predice coneccion o no/residuos
-            nn.Conv1d(in_channels=32, out_channels=1, kernel_size=3, padding='same'),
-            nn.ReLU(),
-            nn.Linear(510, 510),
-            nn.Sigmoid()
-          )        
+            nn.Linear(32, 510),
+            nn.Sigmoid(),
+        )        
         self.resnet = ResNet2D(rank*2, num_blocks, kernel_size)
         self.conv_out = nn.Conv2d(conv_dim*2, 1, kernel_size=kernel_size, padding="same")
         self.device = device
