@@ -76,7 +76,7 @@ def pad_batch(batch):
     
     embedding_dim = seq_embs[0].shape[1]  # seq_embs is a list of tensors of size L x d
     batch_size = len(batch)
-    max_L = max(Ls)
+    max_L = 510
     
     seq_embs_pad = torch.zeros(batch_size, max_L, embedding_dim)
     # cross entropy loss can ignore the -1s

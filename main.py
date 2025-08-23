@@ -105,7 +105,7 @@ def train_model(fam='5s'):
             "one-hot",
             f"{data_path}/test.csv",
             "data/ArchiveII_probing.pt",
-            int(len(test)/2),
+            BATCH_SIZE,
             False,
             # beta=beta,
         )
