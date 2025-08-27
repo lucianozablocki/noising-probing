@@ -121,7 +121,7 @@ class SecondaryStructurePredictor(nn.Module):
             stride=1,
         )
 
-        self.1d_embedding_learner = nn.Sequential(
+        self.embedding_learner_1d = nn.Sequential(
             *self.resnet1d,
             self.convrank1)
 
@@ -130,10 +130,9 @@ class SecondaryStructurePredictor(nn.Module):
             nn.ReLU(),
             nn.Conv1d(in_channels=64, out_channels=32, kernel_size=3, padding='same'),
             nn.ReLU(),
-            #Lineal que toma las 32 features "representativas" y predice coneccion o no/residuos
-            nn.Linear(32, 510),
-            nn.Sigmoid(),
         )        
+        # Lineal que toma las 32 features "representativas" y predice coneccion o no/residuos
+        self.last_linear=nn.Linear(32, 1)
         self.resnet = ResNet2D(rank*2, num_blocks, kernel_size)
         self.conv_out = nn.Conv2d(conv_dim*2, 1, kernel_size=kernel_size, padding="same")
         self.device = device
@@ -163,7 +162,7 @@ class SecondaryStructurePredictor(nn.Module):
         # 1D processing
         x_1d = self.linear_in(x)
         x_1d = x_1d.permute(0, 2, 1)
-        embedding_1d = self.1d_embedding_learner(x_1d) if return_probing else None
+        embedding_1d = self.embedding_learner_1d(x_1d) if return_probing else None
         embedding_1d = embedding_1d.permute(0, 2, 1)
 
         x_2d = outer_concat(embedding_1d, embedding_1d)
@@ -173,6 +172,9 @@ class SecondaryStructurePredictor(nn.Module):
         # Probing prediction branch
         x_2d_mean = torch.mean(x_2d, 2) # rows
         probing_pred = self.probing_predictor(x_2d_mean)
+        probing_pred = probing_pred.permute(0, 2, 1)
+        probing_pred = self.last_linear(probing_pred)
+        probing_pred = torch.sigmoid(probing_pred)
 
         # Contact prediction branch
         x_2d = self.conv_out(x_2d)
