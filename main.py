@@ -57,6 +57,7 @@ def train_model(fam='5s'):
     # logger.info(f"Closeness percentage: {CLOSENESS_PERCENTAGE}")
     logger.info(f"Learning rate: {LEARNING_RATE}")
     logger.info(f"Batch size: {BATCH_SIZE}")
+    logger.info(f"Device: {DEVICE}")
     # Setup CSV for logging metrics
     csv_path = os.path.join(RESULTS_PATH, "metrics.csv")
     fieldnames = [
