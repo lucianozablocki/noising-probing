@@ -8,8 +8,9 @@ dependencies:
   - tqdm
   - pandas
   - python=3.12.9
-  - pytorch
-  - pytorch-cuda
+  - torch --index-url https://download.pytorch.org/whl/rocm6.4
+  # - pytorch-cuda
   - scikit-learn
-  - torchaudio
-  - torchvision
+  # - torchaudio
+  - torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+  # - mkl==2024.0
