@@ -1,4 +1,4 @@
-name: noising-probing
+name: another-name
 channels:
   - conda-forge
   - defaults
