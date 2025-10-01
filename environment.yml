@@ -1,16 +1,14 @@
 name: noising-probing
 channels:
-  - pytorch
-  - nvidia
+  - conda-forge
   - defaults
 dependencies:
   - h5py
   - tqdm
   - pandas
   - python=3.12.9
-  - torch --index-url https://download.pytorch.org/whl/rocm6.4
-  # - pytorch-cuda
   - scikit-learn
-  # - torchaudio
-  - torchvision --index-url https://download.pytorch.org/whl/rocm6.4
-  # - mkl==2024.0
+  - pip
+  - pip:
+    - torch --index-url https://download.pytorch.org/whl/rocm6.4
+    - torchvision --index-url https://download.pytorch.org/whl/rocm6.4
