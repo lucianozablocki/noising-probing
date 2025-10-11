@@ -9,6 +9,5 @@ dependencies:
   - python=3.12.9
   - scikit-learn
   - pip
-  - pip:
-    - torch --index-url https://download.pytorch.org/whl/rocm6.4 --force-reinstall
-    - torchvision --index-url https://download.pytorch.org/whl/rocm6.4 --force-reinstall
+
+# pip install torch==2.4.1+rocm6.1 torchvision==0.19.1+rocm6.1 --index-url https://download.pytorch.org/whl/rocm6.1

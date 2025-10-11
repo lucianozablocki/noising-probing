@@ -3,9 +3,11 @@
 import torch
 
 # Training parameters
-BATCH_SIZE = 4
-MAX_EPOCHS = 3000
+BATCH_SIZE = 4  # Reduced from 16 to save memory
+ACCUMULATION_STEPS = 4  # Effective batch size = 4 * 4 = 16
+MAX_EPOCHS = 10
 LEARNING_RATE = 1e-3
+USE_AMP = False  # Automatic Mixed Precision (FP16) - set to True to enable
 
 # # Noise parameters
 # NOISE_STEPS = 100

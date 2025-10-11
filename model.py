@@ -85,11 +85,13 @@ class SecondaryStructurePredictor(nn.Module):
         self, embed_dim, num_blocks=2,
         conv_dim=64, kernel_size=3,
         negative_weight=0.1,
-        device='cpu', lr=1e-5
+        device='cpu', lr=1e-5,
+        use_amp=False
     ):
         super().__init__()
         self.lr = lr
         self.threshold = 0.1
+        self.use_amp = use_amp  # Flag for automatic mixed precision
         self.linear_in = nn.Linear(embed_dim, (int)(conv_dim/2))
 
         kernel=3
@@ -138,6 +140,15 @@ class SecondaryStructurePredictor(nn.Module):
         self.device = device
         self.class_weight = torch.tensor([negative_weight, 1.0]).float().to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        
+        # Initialize GradScaler for automatic mixed precision
+        if self.use_amp:
+            # Determine device type for AMP
+            device_type = "cuda" if torch.cuda.is_available() else "cpu"
+            self.scaler = torch.amp.GradScaler(device_type)
+        else:
+            self.scaler = None
+        
         self.to(device)
 
     def loss_func(self, yhat, y, probing_pred=None, probing_target=None):
@@ -186,8 +197,15 @@ class SecondaryStructurePredictor(nn.Module):
             return x_2d.squeeze(-1), probing_pred
         return x_2d.squeeze(-1)
 
-    def fit(self, loader):
-        """Train the model for one epoch"""
+    def fit(self, loader, accumulation_steps=1):
+        """Train the model for one epoch with gradient accumulation
+        
+        Args:
+            loader: DataLoader with batch_size (e.g., 4)
+            accumulation_steps: Number of batches to accumulate (e.g., 4)
+                               Effective batch size = batch_size * accumulation_steps
+                               Set to 1 to disable gradient accumulation
+        """
         self.train()
         loss_acum = 0
         f1_acum = 0
@@ -195,27 +213,58 @@ class SecondaryStructurePredictor(nn.Module):
         probing_loss_acum = 0
         f1_probing_acum = 0
 
-        for batch in tqdm(loader):
+        self.optimizer.zero_grad()  # Initialize gradients at start
+
+        for i, batch in enumerate(tqdm(loader)):
             X = batch["seq_embs_pad"].to(self.device)
             y = batch["contacts"].to(self.device)
             probing_target = batch["probings"].to(self.device)
             
-            # Forward pass with probing prediction
-            y_pred, probing_pred = self(X, return_probing=True)
-            
-            contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
-            # Combine losses before backward
-            total_loss = contact_loss + probing_loss
+            # Forward pass with automatic mixed precision if enabled
+            if self.use_amp:
+                device_type = "cuda" if torch.cuda.is_available() else "cpu"
+                with torch.amp.autocast(device_type):
+                    y_pred, probing_pred = self(X, return_probing=True)
+                    contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
+                    # Normalize loss to account for accumulation
+                    total_loss = (contact_loss + probing_loss) / accumulation_steps
+            else:
+                y_pred, probing_pred = self(X, return_probing=True)
+                contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
+                # Normalize loss to account for accumulation
+                total_loss = (contact_loss + probing_loss) / accumulation_steps
         
-            loss_acum += total_loss.item()
+            # Accumulate metrics (use unnormalized for logging)
+            loss_acum += total_loss.item() * accumulation_steps
             contact_loss_acum += contact_loss.item()
             probing_loss_acum += probing_loss.item()
 
             f1_acum += contact_f1(y.cpu(), y_pred.detach().cpu(), batch["Ls"], method="triangular")
             f1_probing_acum += probing_f1(probing_target.cpu(), probing_pred.detach().cpu())
+            
+            # Backward pass with gradient scaling if AMP is enabled
+            if self.use_amp:
+                self.scaler.scale(total_loss).backward()
+            else:
+                total_loss.backward()
+            
+            # Step optimizer every accumulation_steps
+            if (i + 1) % accumulation_steps == 0:
+                if self.use_amp:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    self.optimizer.step()
+                self.optimizer.zero_grad()
+        
+        # Handle any remaining accumulated gradients
+        if (i + 1) % accumulation_steps != 0:
+            if self.use_amp:
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                self.optimizer.step()
             self.optimizer.zero_grad()
-            total_loss.backward()
-            self.optimizer.step()
             
         loss_acum /= len(loader)
         contact_loss_acum /= len(loader)
@@ -246,9 +295,16 @@ class SecondaryStructurePredictor(nn.Module):
             probing_target = batch["probings"].to(self.device)
 
             with torch.no_grad():
-                y_pred, probing_pred = self(X, return_probing=True)
-                contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
-                total_loss = contact_loss + probing_loss
+                if self.use_amp:
+                    device_type = "cuda" if torch.cuda.is_available() else "cpu"
+                    with torch.amp.autocast(device_type):
+                        y_pred, probing_pred = self(X, return_probing=True)
+                        contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
+                        total_loss = contact_loss + probing_loss
+                else:
+                    y_pred, probing_pred = self(X, return_probing=True)
+                    contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
+                    total_loss = contact_loss + probing_loss
         
             loss_acum += total_loss.item()
             contact_loss_acum += contact_loss.item()
