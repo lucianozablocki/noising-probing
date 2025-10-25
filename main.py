@@ -38,6 +38,18 @@ def train_model(fam='5s'):
 
     # Initialize model
     net = SecondaryStructurePredictor(embed_dim=4, device=DEVICE, lr=LEARNING_RATE)
+    # model_params = sum(p.numel() * p.element_size() for p in net.parameters()) / (1024**2)
+    
+    param_size = 0
+    for param in net.parameters():
+        param_size += param.nelement() * param.element_size()
+    buffer_size = 0
+    for buffer in net.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
+    size_all_mb = (param_size + buffer_size) / 1024**2
+    logger.info('model size: {:.3f}MB'.format(size_all_mb))
+    # print(f"Model parameters: {model_params:.1f} MB")
     
     # # Load pretrained weights if available
     # checkpoint_path = f"{RESULTS_PATH}/827weights.pmt"

@@ -9,6 +9,37 @@ import math
 
 from utils import contact_f1, outer_concat, mat2bp, probing_f1
 
+import torch
+import gc
+
+def get_tensor_memory_mb(tensor):
+    """Get memory usage of a tensor in MB"""
+    if tensor is None:
+        return 0
+    return tensor.element_size() * tensor.nelement() / (1024**2)
+
+def print_gpu_memory_breakdown():
+    """Print detailed GPU memory breakdown"""
+    if not torch.cuda.is_available():
+        return
+    
+    allocated = torch.cuda.memory_allocated() / (1024**3)
+    reserved = torch.cuda.memory_reserved() / (1024**3)
+    
+    print(f"GPU Memory - Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+    print(torch.cuda.memory_summary())
+    # Print all tensors on GPU
+    total_tensor_memory = 0
+    for obj in gc.get_objects():
+        if torch.is_tensor(obj) and obj.is_cuda:
+            size_mb = get_tensor_memory_mb(obj)
+            # if size_mb > 10:  # Only show tensors > 10MB
+            # print(f"  Tensor {obj.shape}: {size_mb:.1f} MB")
+            # print(type(obj), obj.size())
+            total_tensor_memory += size_mb
+    
+    print(f"Total tracked tensors: {total_tensor_memory:.1f} MB")
+
 class ResidualLayer1D(nn.Module):
     def __init__(
         self,
@@ -159,16 +190,82 @@ class SecondaryStructurePredictor(nn.Module):
 
     def forward(self, x, return_probing=False):
         """Forward pass through the network"""
+        # print("\n=== MEMORY BEFORE FORWARD ===")
+        # print_gpu_memory_breakdown()
+        
         # 1D processing
         x_1d = self.linear_in(x)
+        # print(f"After linear_in: x_1d {x_1d.shape} = {get_tensor_memory_mb(x_1d):.1f} MB")
+        
         x_1d = x_1d.permute(0, 2, 1)
+        # print(f"After permute: x_1d {x_1d.shape} = {get_tensor_memory_mb(x_1d):.1f} MB")
+        
         embedding_1d = self.embedding_learner_1d(x_1d) if return_probing else None
+        # print(f"After embedding_learner_1d: {embedding_1d.shape} = {get_tensor_memory_mb(embedding_1d):.1f} MB")
         embedding_1d = embedding_1d.permute(0, 2, 1)
+        # print(f"After permute: embedding_1d {embedding_1d.shape} = {get_tensor_memory_mb(embedding_1d):.1f} MB")
+        
 
+        # print("\n=== BEFORE OUTER_CONCAT ===")
+        # print_gpu_memory_breakdown()
         x_2d = outer_concat(embedding_1d, embedding_1d)
-        x_2d = x_2d.permute(0, 3, 1, 2)
-        x_2d = self.resnet(x_2d)
+        # print(f"After outer_concat: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
 
+        # print("\n=== BEFORE RESNET ===")
+        # print_gpu_memory_breakdown()
+        x_2d = x_2d.permute(0, 3, 1, 2)
+        # print(f"After permute to NCHW: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+        
+        # Break down ResNet2D forward pass block by block
+        for block_idx, block in enumerate(self.resnet.blocks):
+            # print(f"\n=== RESNET BLOCK {block_idx} START ===")
+            # print_gpu_memory_breakdown()
+            
+            # Store residual
+            residual = x_2d
+            # print(f"Residual stored: {residual.shape} = {get_tensor_memory_mb(residual):.1f} MB")
+            
+            # Break down ResNet2DBlock conv_net operations
+            conv_layers = list(block.conv_net.children())
+            
+            # First conv + norm + relu
+            x_2d = conv_layers[0](x_2d)  # Conv2d 1x1
+            # print(f"After 1x1 conv: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            x_2d = conv_layers[1](x_2d)  # InstanceNorm2d
+            # print(f"After norm1: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            x_2d = conv_layers[2](x_2d)  # ReLU
+            # print(f"After relu1: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            # print_gpu_memory_breakdown()
+
+            # Second conv + norm + relu  
+            x_2d = conv_layers[3](x_2d)  # Conv2d 3x3
+            # print(f"After 3x3 conv: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            # print_gpu_memory_breakdown()
+            x_2d = conv_layers[4](x_2d)  # InstanceNorm2d
+            # print(f"After norm2: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            x_2d = conv_layers[5](x_2d)  # ReLU
+            # print(f"After relu2: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            # print_gpu_memory_breakdown()
+
+            # Third conv + norm + relu
+            x_2d = conv_layers[6](x_2d)  # Conv2d 1x1
+            # print(f"After final 1x1 conv: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            x_2d = conv_layers[7](x_2d)  # InstanceNorm2d  
+            # print(f"After norm3: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            x_2d = conv_layers[8](x_2d)  # ReLU
+            # print(f"After relu3: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            # print_gpu_memory_breakdown()
+            
+            # Residual connection
+            x_2d = x_2d + residual
+            # print(f"After residual add: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+            
+            # print(f"\n=== RESNET BLOCK {block_idx} END ===")
+            # print_gpu_memory_breakdown()
+        
+        # print(f"\n=== AFTER ALL RESNET BLOCKS ===")
+        # print(f"Final resnet output: x_2d {x_2d.shape} = {get_tensor_memory_mb(x_2d):.1f} MB")
+    
         # Probing prediction branch
         x_2d_mean = torch.mean(x_2d, 2) # rows
         probing_pred = self.probing_predictor(x_2d_mean)
@@ -194,12 +291,18 @@ class SecondaryStructurePredictor(nn.Module):
         contact_loss_acum = 0
         probing_loss_acum = 0
         f1_probing_acum = 0
-
+        # X=torch.zeros(64, 510, 4)
+        # y=-torch.ones((64, 510, 510), dtype=torch.long)
+        # probing_target=torch.zeros(128, 510)
         for batch in tqdm(loader):
             X = batch["seq_embs_pad"].to(self.device)
             y = batch["contacts"].to(self.device)
             probing_target = batch["probings"].to(self.device)
-            
+            # print(f"Batch data:")
+            # print(f"  X {X.shape}: {get_tensor_memory_mb(X):.1f} MB")
+            # print(f"  y {y.shape}: {get_tensor_memory_mb(y):.1f} MB") 
+            # print(f"  probing_target {probing_target.shape}: {get_tensor_memory_mb(probing_target):.1f} MB")
+        
             # Forward pass with probing prediction
             y_pred, probing_pred = self(X, return_probing=True)
             
@@ -239,7 +342,9 @@ class SecondaryStructurePredictor(nn.Module):
         contact_loss_acum = 0
         probing_loss_acum = 0
         f1_probing_acum = 0
-
+        # X=torch.zeros(BATCH_SIZE, 510, 4)
+        # y=-torch.ones((BATCH_SIZE, 510, 510), dtype=torch.long)
+        # probing_target=torch.zeros(BATCH_SIZE, 510)
         for batch in loader:
             X = batch["seq_embs_pad"].to(self.device)
             y = batch["contacts"].to(self.device)
