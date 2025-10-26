@@ -138,9 +138,9 @@ class SecondaryStructurePredictor(nn.Module):
         self.resnet = ResNet2D(rank*2, num_blocks, kernel_size)
         self.conv_out = nn.Conv2d(conv_dim*2, 1, kernel_size=kernel_size, padding="same")
         self.device = device
-        self.class_weight = torch.tensor([negative_weight, 1.0]).float().to(self.device)
+        self.class_weight = torch.tensor([negative_weight, 1.0],dtype=torch.float16).to(self.device)
+        self.half()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        
         # Initialize GradScaler for automatic mixed precision
         if self.use_amp:
             # Determine device type for AMP
@@ -159,12 +159,12 @@ class SecondaryStructurePredictor(nn.Module):
         yhat = yhat.unsqueeze(1)
         yhat = torch.cat((-yhat, yhat), dim=1)
         contact_loss = cross_entropy(yhat, y, ignore_index=-1, weight=self.class_weight)
-        
+        print(f"type of contact_loss: {contact_loss.dtype}")
         # Probing prediction loss (if provided)
         probing_loss = 0
         if probing_pred is not None and probing_target is not None:
             probing_loss = nn.MSELoss()(probing_pred.squeeze(), probing_target.squeeze())
-        
+        print(f"type of probing_loss: {probing_loss.dtype}")
         return contact_loss, probing_loss  # You can adjust the weighting
         # revisar comportamiento de las loss por separado, interesa ver que pasa con cada uno
 
@@ -172,23 +172,30 @@ class SecondaryStructurePredictor(nn.Module):
         """Forward pass through the network"""
         # 1D processing
         x_1d = self.linear_in(x)
+        print(f"type of x_1d: {x_1d.dtype}")
         x_1d = x_1d.permute(0, 2, 1)
         embedding_1d = self.embedding_learner_1d(x_1d) if return_probing else None
+        print(f"type of embedding_1d: {embedding_1d.dtype}")
         embedding_1d = embedding_1d.permute(0, 2, 1)
 
         x_2d = outer_concat(embedding_1d, embedding_1d)
+        print(f"type of x_2d: {x_2d.dtype}")
+
         x_2d = x_2d.permute(0, 3, 1, 2)
         x_2d = self.resnet(x_2d)
 
         # Probing prediction branch
         x_2d_mean = torch.mean(x_2d, 2) # rows
         probing_pred = self.probing_predictor(x_2d_mean)
+        print(f"type of probing_pred before permute: {probing_pred.dtype}")
         probing_pred = probing_pred.permute(0, 2, 1)
         probing_pred = self.last_linear(probing_pred)
+        print(f"type of probing_pred before sigmoid: {probing_pred.dtype}")
         probing_pred = torch.sigmoid(probing_pred)
 
         # Contact prediction branch
         x_2d = self.conv_out(x_2d)
+        print(f"type of x_2d after conv_out: {x_2d.dtype}")
         x_2d = x_2d.squeeze(-3)
         x_2d = torch.triu(x_2d, diagonal=1)
         x_2d = x_2d + x_2d.transpose(-1, -2)
@@ -219,7 +226,9 @@ class SecondaryStructurePredictor(nn.Module):
             X = batch["seq_embs_pad"].to(self.device)
             y = batch["contacts"].to(self.device)
             probing_target = batch["probings"].to(self.device)
-            
+            print(f"type of X: {X.dtype}")
+            print(f"type of y: {y.dtype}")
+            print(f"type of probing_target: {probing_target.dtype}")
             # Forward pass with automatic mixed precision if enabled
             if self.use_amp:
                 device_type = "cuda" if torch.cuda.is_available() else "cpu"
@@ -230,6 +239,8 @@ class SecondaryStructurePredictor(nn.Module):
                     total_loss = (contact_loss + probing_loss) / accumulation_steps
             else:
                 y_pred, probing_pred = self(X, return_probing=True)
+                print(f"type of y_pred: {y_pred.dtype}")
+                print(f"type of probing_pred: {probing_pred.dtype}")
                 contact_loss, probing_loss = self.loss_func(y_pred, y, probing_pred, probing_target)
                 # Normalize loss to account for accumulation
                 total_loss = (contact_loss + probing_loss) / accumulation_steps

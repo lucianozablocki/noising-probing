@@ -13,7 +13,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s.%(lineno)d - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),  # Log to console
-        logging.FileHandler("results/log.txt", mode='w'),
+        # logging.FileHandler("results/log.txt", mode='w'),
     ]
 )
 logger = logging.getLogger(__name__)

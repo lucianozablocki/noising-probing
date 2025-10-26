@@ -27,6 +27,10 @@ class EmbeddingDataset(Dataset):
         self.probing = {}
         try:
             probing = torch.load(probing_path)
+            # cast probing to torch.float16 to save memory
+            for key in probing:
+                probing[key] = probing[key].to(torch.float16)
+                # print(f"type {probing[key].dtype}")
         except FileNotFoundError:
             print(f"Probing file not found: {probing_path}")
             raise
@@ -37,7 +41,7 @@ class EmbeddingDataset(Dataset):
             # probing_reshaped = probing[seq_id].reshape(probing[seq_id].shape[0], 1)
             # probing_reshaped = (1-beta)*probing_reshaped + beta*np.random.uniform(0, 1, probing_reshaped.shape)
             # embedding = torch.from_numpy(np.hstack([embedding, probing_reshaped])) # L x d -> L x d+1
-            self.embeddings[seq_id] = embedding
+            self.embeddings[seq_id] = embedding.to(torch.float16)
             self.probing[seq_id] = probing[seq_id]
         self.base_pairs = [
             json.loads(data.base_pairs.iloc[i]) for i in range(len(data))
@@ -77,11 +81,11 @@ def pad_batch(batch):
     embedding_dim = seq_embs[0].shape[1]  # seq_embs is a list of tensors of size L x d
     batch_size = len(batch)
     max_L = 510
-    
-    seq_embs_pad = torch.zeros(batch_size, max_L, embedding_dim)
+
+    seq_embs_pad = torch.zeros(batch_size, max_L, embedding_dim, dtype=torch.float16)
     # cross entropy loss can ignore the -1s
     Mcs_pad = -torch.ones((batch_size, max_L, max_L), dtype=torch.long)
-    probings_pad = torch.zeros(batch_size, max_L)#, 1)
+    probings_pad = torch.zeros(batch_size, max_L, dtype=torch.float16)#, 1)
 
     for k in range(batch_size):
         seq_embs_pad[k, : Ls[k], :] = seq_embs[k][:Ls[k], :]

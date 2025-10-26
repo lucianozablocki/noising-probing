@@ -33,14 +33,14 @@ def train_model(fam='5s', batch_size=None, accumulation_steps=None, use_amp=None
     if results_path is None:
         results_path = RESULTS_PATH
     
-    # Create necessary directories
+    # # Create necessary directories
     data_path = f"data/{fam}"
-    os.makedirs(data_path, exist_ok=True)
-    os.makedirs(results_path, exist_ok=True)
+    # os.makedirs(data_path, exist_ok=True)
+    # os.makedirs(results_path, exist_ok=True)
     
-    # Save train and test data
-    train.to_csv(f"{data_path}/train.csv")
-    test.to_csv(f"{data_path}/test.csv")
+    # # Save train and test data
+    # train.to_csv(f"{data_path}/train.csv")
+    # test.to_csv(f"{data_path}/test.csv")
     
     logger.info("+" * 80)
     logger.info(f"ArchiveII {fam} TRAINING STARTED".center(80))
@@ -82,7 +82,7 @@ def train_model(fam='5s', batch_size=None, accumulation_steps=None, use_amp=None
         # "epoch",
         # "noise_step"
     ]
-    setup_csv_logger(csv_path, fieldnames)
+    # setup_csv_logger(csv_path, fieldnames)
     train_loader = create_dataloader(
         "one-hot",
         f"{data_path}/train.csv",
@@ -116,7 +116,7 @@ def train_model(fam='5s', batch_size=None, accumulation_steps=None, use_amp=None
         metrics.update(val_metrics)
         metrics.update({"epoch_time_s": time.time() - time_start})
         # Log metrics
-        log_metrics_to_csv(csv_path, metrics)
+        # log_metrics_to_csv(csv_path, metrics)
         logger.info(" ".join([f"{k}: {v}" for k, v in metrics.items()]))
 
     logger.info(f"ArchiveII {fam} TRAINING ENDED".center(80))
