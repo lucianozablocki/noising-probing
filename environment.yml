@@ -1,13 +1,17 @@
-name: another-name
+name: noising-probing-ncu
 channels:
+  - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
   - h5py
   - tqdm
   - pandas
-  - python=3.12.9
+  - python=3.12
+  - anaconda::mkl=2023.1.0
+  - pytorch
   - scikit-learn
-  - pip
-
-# pip install torch==2.4.1+rocm6.1 torchvision==0.19.1+rocm6.1 --index-url https://download.pytorch.org/whl/rocm6.1
+  - torchaudio
+  - torchvision
+  - nvidia::nsight-compute
